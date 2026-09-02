@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>گوشی A - دروازه‌بان</title>
+    <style>
+        body { font-family: Tahoma; direction: rtl; padding: 20px; }
+        .btn { padding: 15px 30px; margin: 10px; font-size: 18px; }
+        .status { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>📱 گوشی A (دروازه‌بان)</h1>
+    
+    <div class="status" id="bleStatus">🔴 بلوتوث: غیرفعال</div>
+    <div class="status" id="espResponse">📨 پاسخ ESP: ---</div>
+    <div class="status" id="cloudStatus">☁️ ابر: در حال اتصال...</div>
+
+    <button class="btn" onclick="connectBLE()">🔗 اتصال به ESP32</button>
+    <button class="btn" onclick="sendNumber(1)">📤 ارسال عدد 1 به ESP</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket;
+        let device;
+        let serverCharacteristic;
+        let responseCharacteristic;
+
+        function connectToServer() {
+            socket = io();
+            socket.on('connect', () => {
+                document.getElementById('cloudStatus').innerHTML = '☁️ ابر: متصل ✅';
+                socket.emit('get_state');
+            });
+            socket.on('state', (state) => {
+                if (state.command !== 0) {
+                    sendNumber(state.command);
+                }
+                if (state.response) {
+                    document.getElementById('espResponse').innerHTML = '📨 پاسخ ESP: ' + state.response;
+                }
+            });
+            socket.on('command_updated', (command) => {
+                if (command !== 0) {
+                    sendNumber(command);
+                }
+            });
+        }
+
+        async function connectBLE() {
+            try {
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'ESP32-BLE' }],
+                    optionalServices: ['6E400001-B5A3-F393-E0A9-E50E24DCCA9E']
+                });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('6E400001-B5A3-F393-E0A9-E50E24DCCA9E');
+                
+                serverCharacteristic = await service.getCharacteristic('6E400002-B5A3-F393-E0A9-E50E24DCCA9E');
+                responseCharacteristic = await service.getCharacteristic('6E400003-B5A3-F393-E0A9-E50E24DCCA9E');
+                await responseCharacteristic.startNotifications();
+                responseCharacteristic.addEventListener('characteristicvaluechanged', handleResponse);
+
+                document.getElementById('bleStatus').innerHTML = '🔵 بلوتوث: متصل به ESP32 ✅';
+            } catch (error) {
+                alert('خطا در اتصال بلوتوث: ' + error);
+            }
+        }
+
+        async function sendNumber(number) {
+            if (!serverCharacteristic) {
+                alert('ابتدا به ESP32 وصل شوید');
+                return;
+            }
+            try {
+                const encoder = new TextEncoder();
+                await serverCharacteristic.writeValue(encoder.encode(number.toString()));
+                document.getElementById('espResponse').innerHTML = '📤 عدد ${number} به ESP ارسال شد...';
+            } catch (error) {
+                alert('خطا در ارسال: ' + error);
+            }
+        }
+
+        function handleResponse(event) {
+            const value = new TextDecoder().decode(event.target.value);
+            document.getElementById('espResponse').innerHTML = '📨 پاسخ ESP: ' + value;
+            socket.emit('send_response', value);
+        }
+
+        connectToServer();
+    </script>
+</body>
+</html>
