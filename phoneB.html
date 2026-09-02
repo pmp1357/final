@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>گوشی B - کاربر دور دست</title>
+    <style>
+        body { font-family: Tahoma; direction: rtl; padding: 20px; }
+        .btn { padding: 15px 30px; margin: 10px; font-size: 18px; background: #4CAF50; color: white; border: none; border-radius: 5px; }
+        .status { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>📱 گوشی B (کاربر دور دست)</h1>
+    
+    <div class="status" id="connectionStatus">☁️ ابر: در حال اتصال...</div>
+    <div class="status" id="responseDisplay">📨 پاسخ از ESP: ---</div>
+
+    <button class="btn" onclick="sendNumber(2)">📤 ارسال عدد 2 به دستگاه</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket;
+
+        function connectToServer() {
+            socket = io();
+            socket.on('connect', () => {
+                document.getElementById('connectionStatus').innerHTML = '☁️ ابر: متصل ✅';
+            });
+            socket.on('response_updated', (message) => {
+                if (message) {
+                    document.getElementById('responseDisplay').innerHTML = '📨 پاسخ از ESP: ' + message;
+                    localStorage.setItem('last_response', message);
+                }
+            });
+        }
+
+        function sendNumber(number) {
+            if (!socket) {
+                alert('ابتدا به سرور متصل شوید');
+                return;
+            }
+            socket.emit('send_command', number);
+            document.getElementById('responseDisplay').innerHTML = '📤 عدد ${number} به دستگاه ارسال شد...';
+        }
+
+        connectToServer();
+    </script>
+</body>
+</html>
